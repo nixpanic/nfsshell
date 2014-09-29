@@ -142,6 +142,7 @@
 #define	CMD_PUT		25	/* put <local-file> [<remote-file>] */
 #define CMD_HANDLE	26	/* handle [<file-handle>] */
 #define	CMD_MKNOD	27	/* mknod <name> [b/c major minor] [p] */
+#define	CMD_CHMODTRUNC	28	/* chmodtrunc <mode> <size> <file> */
 
 /*
  * Key word table
@@ -151,34 +152,35 @@ struct keyword {
     int kw_value;
     char *kw_help;
 } keyword[] = {
-    { "host",	  CMD_HOST,	"<host> - set remote host name" },
-    { "uid",	  CMD_UID,	"[<uid> [<secret-key>]] - set remote user id" },
-    { "gid",	  CMD_GID,	"[<gid>] - set remote group id" },
-    { "cd",	  CMD_CD,	"[<path>] - change remote working directory" },
-    { "lcd",	  CMD_LCD,	"[<path>] - change local working directory" },
-    { "cat",	  CMD_CAT,	"<filespec> - display remote file" },
-    { "ls",	  CMD_LS,	"[-l] <filespec> - list remote directory" },
-    { "get",	  CMD_GET,	"<filespec> - get remote files" },
-    { "df",	  CMD_DF,	"- file system information" },
-    { "rm",	  CMD_RM,	"<file> - delete remote file" },
-    { "ln",	  CMD_LN,	"<file1> <file2> - link file" },
-    { "mv",	  CMD_MV,	"<file1> <file2> - move file" },
-    { "mkdir",	  CMD_MKDIR,	"<dir> - make remote directory" },
-    { "rmdir",	  CMD_RMDIR,	"<dir> - remove remote directory" },
-    { "chmod",	  CMD_CHMOD,	"<mode> <file> - change mode" },
-    { "chown",	  CMD_CHOWN,	"<uid>[.<gid>] <file> -  change owner" },
-    { "put",	  CMD_PUT,	"<local-file> [<remote-file>] - put file" },
-    { "mount",	  CMD_MOUNT,	"[-upTU] [-P port] <path> - mount file system" },
-    { "umount",	  CMD_UMOUNT,	"- umount remote file system" },
-    { "umountall",CMD_UMOUNTALL,"- umount all remote file systems" },
-    { "export",	  CMD_EXPORT,	"- show all exported file systems" },
-    { "dump",	  CMD_DUMP,	"- show all remote mounted file systems" },
-    { "status",	  CMD_STATUS,	"- general status report" },
-    { "help",	  CMD_HELP,	"- this help message" },
-    { "quit",	  CMD_QUIT,	"- its all in the name" },
-    { "bye",	  CMD_QUIT,	"- good bye" },
-    { "handle",	  CMD_HANDLE,	"[<handle>] - get/set directory file handle" },
-    { "mknod",	  CMD_MKNOD,	"<name> [b/c major minor] [p] - make device" }
+    { "host",	    CMD_HOST,	    "<host> - set remote host name" },
+    { "uid",	    CMD_UID,	    "[<uid> [<secret-key>]] - set remote user id" },
+    { "gid",	    CMD_GID,	    "[<gid>] - set remote group id" },
+    { "cd",	    CMD_CD,	    "[<path>] - change remote working directory" },
+    { "lcd",	    CMD_LCD,	    "[<path>] - change local working directory" },
+    { "cat",	    CMD_CAT,	    "<filespec> - display remote file" },
+    { "ls",	    CMD_LS,	    "[-l] <filespec> - list remote directory" },
+    { "get",	    CMD_GET,	    "<filespec> - get remote files" },
+    { "df",	    CMD_DF,	    "- file system information" },
+    { "rm",	    CMD_RM,	    "<file> - delete remote file" },
+    { "ln",	    CMD_LN,	    "<file1> <file2> - link file" },
+    { "mv",	    CMD_MV,	    "<file1> <file2> - move file" },
+    { "mkdir",	    CMD_MKDIR,	    "<dir> - make remote directory" },
+    { "rmdir",	    CMD_RMDIR,	    "<dir> - remove remote directory" },
+    { "chmod",	    CMD_CHMOD,	    "<mode> <file> - change mode" },
+    { "chmodtrunc", CMD_CHMODTRUNC, "<mode> <size> <file> - change mode" },
+    { "chown",	    CMD_CHOWN,	    "<uid>[.<gid>] <file> -  change owner" },
+    { "put",	    CMD_PUT,	    "<local-file> [<remote-file>] - put file" },
+    { "mount",	    CMD_MOUNT,	    "[-upTU] [-P port] <path> - mount file system" },
+    { "umount",	    CMD_UMOUNT,	    "- umount remote file system" },
+    { "umountall",  CMD_UMOUNTALL,  "- umount all remote file systems" },
+    { "export",	    CMD_EXPORT,	    "- show all exported file systems" },
+    { "dump",	    CMD_DUMP,	    "- show all remote mounted file systems" },
+    { "status",	    CMD_STATUS,	    "- general status report" },
+    { "help",	    CMD_HELP,	    "- this help message" },
+    { "quit",	    CMD_QUIT,	    "- its all in the name" },
+    { "bye",	    CMD_QUIT,	    "- good bye" },
+    { "handle",	    CMD_HANDLE,	    "[<handle>] - get/set directory file handle" },
+    { "mknod",	    CMD_MKNOD,	    "<name> [b/c major minor] [p] - make device" }
 };
  
 /* run-time settable flags */
@@ -225,6 +227,7 @@ void do_mv(int, char **);
 void do_mkdir(int, char **);
 void do_rmdir(int, char **);
 void do_chmod(int, char **);
+void do_chmodtrunc(int, char **);
 void do_mknod(int, char **);
 void do_chown(int, char **);
 void do_put(int, char **);
@@ -359,6 +362,9 @@ main(int argc, char **argv)
 	    break;
 	case CMD_CHMOD:
 	    do_chmod(argcount, argvec);
+	    break;
+	case CMD_CHMODTRUNC:
+	    do_chmodtrunc(argcount, argvec);
 	    break;
 	case CMD_CHOWN:
 	    do_chown(argcount, argvec);
@@ -1158,6 +1164,65 @@ do_chmod(int argc, char **argv)
     aargs.new_attributes.uid   = (set_uid3)  { .set_it=FALSE };
     aargs.new_attributes.gid   = (set_gid3)  { .set_it=FALSE };
     aargs.new_attributes.size  = (set_size3) { .set_it=FALSE };
+    aargs.new_attributes.atime = (set_atime) { .set_it=FALSE };
+    aargs.new_attributes.mtime = (set_mtime) { .set_it=FALSE };
+
+    if ((ares = nfs3_setattr_3(&aargs, nfsclient)) == NULL) {
+	clnt_perror(nfsclient, "nfs3_setattr");
+	return;
+    }
+    if (ares->status != NFS3_OK) {
+	fprintf(stderr, "Set attributes failed: %s\n", nfs_error(ares->status));
+	return;
+    }
+}
+
+/*
+ * Change mode of remote file and truncate/extend it
+ */
+void
+do_chmodtrunc(int argc, char **argv)
+{
+    LOOKUP3args dargs;
+    LOOKUP3res *dres;
+    SETATTR3args aargs;
+    SETATTR3res *ares;
+    int mode;
+    unsigned int size;
+
+    if (mountpath == NULL) {
+	fprintf(stderr, "chmodtrunc: no remote file system mounted\n");
+	return;
+    }
+    if (argc != 4) {
+	fprintf(stderr, "Usage: chmodtrunc <mode> <size> <file>\n");
+	return;
+    }
+    if (sscanf(argv[1], "%o", &mode) != 1) {
+	fprintf(stderr, "chmodtrunc: invalid mode\n");
+	return;
+    }
+    if (sscanf(argv[2], "%ud", &size) != 1) {
+	fprintf(stderr, "chmodtrunc: invalid size\n");
+	return;
+    }
+
+    dargs.what.name = argv[3];
+    nfs_fh3copy(&dargs.what.dir, &directory_handle);
+    if ((dres = nfs3_lookup_3(&dargs, nfsclient)) == NULL) {
+	clnt_perror(nfsclient, "nfs3_lookup");
+	return;
+    }
+    if (dres->status != NFS3_OK) {
+	fprintf(stderr, "%s: %s\n", argv[2], nfs_error(dres->status));
+	return;
+    }
+
+    nfs_fh3copy(&aargs.object, &dres->LOOKUP3res_u.resok.object);
+    aargs.new_attributes.mode  = (set_mode3) { .set_it=TRUE, .set_mode3_u.mode=mode };
+    aargs.new_attributes.uid   = (set_uid3)  { .set_it=FALSE };
+    aargs.new_attributes.gid   = (set_gid3)  { .set_it=FALSE };
+    aargs.new_attributes.size  = (set_size3) { .set_it=TRUE, .set_size3_u.size=size };
     aargs.new_attributes.atime = (set_atime) { .set_it=FALSE };
     aargs.new_attributes.mtime = (set_mtime) { .set_it=FALSE };
 
