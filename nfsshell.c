@@ -142,6 +142,7 @@
 #define	CMD_PUT		25	/* put <local-file> [<remote-file>] */
 #define CMD_HANDLE	26	/* handle [<file-handle>] */
 #define	CMD_MKNOD	27	/* mknod <name> [b/c major minor] [p] */
+#define	CMD_STAT	28	/* stat <name> */
 
 /*
  * Key word table
@@ -168,6 +169,7 @@ struct keyword {
     { "chmod",	  CMD_CHMOD,	"<mode> <file> - change mode" },
     { "chown",	  CMD_CHOWN,	"<uid>[.<gid>] <file> -  change owner" },
     { "put",	  CMD_PUT,	"<local-file> [<remote-file>] - put file" },
+    { "stat",	  CMD_STAT,	"<file> - stat remote file" },
     { "mount",	  CMD_MOUNT,	"[-upTU] [-P port] <path> - mount file system" },
     { "umount",	  CMD_UMOUNT,	"- umount remote file system" },
     { "umountall",CMD_UMOUNTALL,"- umount all remote file systems" },
@@ -228,6 +230,7 @@ void do_chmod(int, char **);
 void do_mknod(int, char **);
 void do_chown(int, char **);
 void do_put(int, char **);
+void do_stat(int, char **);
 void do_handle(int, char **);
 void do_mount(int, char **);
 void do_umount(int, char **);
@@ -365,6 +368,9 @@ main(int argc, char **argv)
 	    break;
 	case CMD_PUT:
 	    do_put(argcount, argvec);
+	    break;
+	case CMD_STAT:
+	    do_stat(argcount, argvec);
 	    break;
 	case CMD_HANDLE:
 	    do_handle(argcount, argvec);
@@ -1374,6 +1380,64 @@ do_put(int argc, char **argv)
     }
     fclose(fp);
 }
+
+/*
+ * stat/getattr
+ */
+void
+do_stat(int argc, char **argv)
+{
+    LOOKUP3args largs;
+    LOOKUP3res *lres;
+    ACCESS3args aargs;
+    ACCESS3res *ares;
+    GETATTR3args args;
+    GETATTR3res *res;
+
+    if (mountpath == NULL) {
+	fprintf(stderr, "stat: no remote file system mounted\n");
+	return;
+    }
+    if (argc != 2) {
+	fprintf(stderr, "Usage: stat <file>\n");
+	return;
+    }
+
+    largs.what.name = argv[1];
+    nfs_fh3copy(&largs.what.dir, &directory_handle);
+    if ((lres = nfs3_lookup_3(&largs, nfsclient)) == NULL) {
+        clnt_perror(nfsclient, "nfs3_lookup");
+        return;
+    }
+    if (lres->status != NFS3_OK) {
+        fprintf(stderr, "%s: %s\n", argv[1], nfs_error(res->status));
+        return;
+    }
+
+    /* access call */
+    nfs_fh3copy(&aargs.object, &lres->LOOKUP3res_u.resok.object);
+    aargs.access = 0x1f; /* RD LU MD XT DL */
+    if ((ares = nfs3_access_3(&aargs, nfsclient)) == NULL) {
+	clnt_perror(nfsclient, "nfs3_access");
+	return;
+    }
+    if (ares->status != NFS3_OK) {
+	fprintf(stderr, "Access failed: %s\n", nfs_error(res->status));
+	return;
+    }
+
+    /* getattr call */
+    nfs_fh3copy(&args.object, &lres->LOOKUP3res_u.resok.object);
+    if ((res = nfs3_getattr_3(&args, nfsclient)) == NULL) {
+	clnt_perror(nfsclient, "nfs3_getattr");
+	return;
+    }
+    if (res->status != NFS3_OK) {
+	fprintf(stderr, "Stat failed: %s\n", nfs_error(res->status));
+	return;
+    }
+}
+
 
 /*
  * Get/set file handle
